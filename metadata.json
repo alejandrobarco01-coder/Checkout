@@ -1,0 +1,6 @@
+{
+  "name": "CheckOut",
+  "description": "Smart, context-aware checking assistant to ensure you never forget essential items when leaving from a location.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

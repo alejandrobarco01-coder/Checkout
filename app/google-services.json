@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "182929926703",
+    "project_id": "checkout-5208d",
+    "storage_bucket": "checkout-5208d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:182929926703:android:4c8595fe4d177e31d374da",
+        "android_client_info": {
+          "package_name": "com.aistudio.checkout.smartf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeGQDkULk-znxAudBkusvXkJ3xlW_Tge4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

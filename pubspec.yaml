@@ -38,7 +38,49 @@ dependencies:
   # Animaciones fluidas
   flutter_animate: ^4.5.0
 
+  # Animación de confeti al completar listas
+  confetti: ^0.7.0
+
+  # Menú SpeedDial para el FAB
+  flutter_speed_dial: ^7.0.0
+
+  # Calendario visual premium
+  table_calendar: ^3.1.2
+
+  # Google Places y Maps
+  flutter_google_places_sdk: ^0.4.3
+  google_maps_flutter: ^2.9.0
+
+  # IDs únicos para viajes
+  uuid: ^4.4.0
+
+  # Variables de entorno
+  flutter_dotenv: ^5.1.0
+
+  # Mapa OpenStreetMap (pantalla mapa legado)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+  # Tipografía premium y diseño moderno
+  google_fonts: ^6.0.0
+  
+  # Iconos y ilustraciones SVG
+  flutter_svg: ^2.0.0
+  
+  # Animaciones Lottie profesionales
+  lottie: ^3.0.0
+  
+  # Indicadores suaves de páginas
+  smooth_page_indicator: ^1.1.0
+  
+  # Efecto de carga shimmer
+  shimmer: ^3.0.0
+  
+  # Notificaciones locales
+  flutter_local_notifications: ^12.0.3
+
   cupertino_icons: ^1.0.8
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
@@ -47,3 +89,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - .env

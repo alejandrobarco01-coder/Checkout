@@ -13,16 +13,29 @@ class AppConstants {
   // Base de datos SQLite
   // ──────────────────────────────────────────────
   static const String dbName = 'checkout.db';
-  static const int dbVersion = 1;
+  static const int dbVersion = 3;
   static const String tableChecklists = 'checklists';
   static const String tableItems = 'items';
+
+  /// Salidas programadas (calendario).
+  static const String tableTrips = 'trips';
+
+  /// Historial al registrar salida (esquema legado).
+  static const String tableCompletedTrips = 'completed_trips';
+  static const String tableForgottenItems = 'forgotten_items';
+  static const String tableCalendarEvents = 'calendar_events';
 
   // ──────────────────────────────────────────────
   // Claves para shared_preferences
   // ──────────────────────────────────────────────
   static const String prefCity = 'city';
+  static const String prefUseCurrentLocation = 'use_current_location';
+  static const String prefCurrentLat = 'current_lat';
+  static const String prefCurrentLng = 'current_lng';
+  static const String prefCurrentLocationName = 'current_location_name';
   static const String prefDarkMode = 'dark_mode';
   static const String prefLastExitType = 'last_exit_type';
+  static const String prefOnboardingCompleted = 'onboarding_completed';
 
   // ──────────────────────────────────────────────
   // Clave JWT en flutter_secure_storage
@@ -33,18 +46,35 @@ class AppConstants {
   // Tipos de salida disponibles
   // ──────────────────────────────────────────────
   static const List<Map<String, String>> exitTypes = [
-    {'id': 'trabajo', 'nombre': 'Trabajo', 'emoji': '💼'},
-    {'id': 'viaje', 'nombre': 'Viaje', 'emoji': '✈️'},
+    {'id': 'personalizado', 'nombre': 'Personalizado', 'emoji': '✨'},
+    {'id': 'compras', 'nombre': 'Compras', 'emoji': '🛒'},
+    {'id': 'hogar', 'nombre': 'Hogar', 'emoji': '🏠'},
     {'id': 'gym', 'nombre': 'Gym', 'emoji': '🏋️'},
     {'id': 'medico', 'nombre': 'Médico', 'emoji': '🏥'},
-    {'id': 'playa', 'nombre': 'Playa', 'emoji': '🏖️'},
-    {'id': 'camping', 'nombre': 'Camping', 'emoji': '⛺'},
   ];
 
   // ──────────────────────────────────────────────
   // Ítems predeterminados por tipo (nombre + peso en kg)
   // ──────────────────────────────────────────────
   static const Map<String, List<Map<String, dynamic>>> defaultItems = {
+    'personalizado': [],
+    'compras': [
+      {'nombre': 'Frutas', 'peso_kg': 0.0},
+      {'nombre': 'Verduras', 'peso_kg': 0.0},
+      {'nombre': 'Pan', 'peso_kg': 0.0},
+      {'nombre': 'Leche', 'peso_kg': 0.0},
+      {'nombre': 'Huevos', 'peso_kg': 0.0},
+      {'nombre': 'Proteína / carne', 'peso_kg': 0.0},
+      {'nombre': 'Snacks', 'peso_kg': 0.0},
+      {'nombre': 'Aseo del hogar', 'peso_kg': 0.0},
+    ],
+    'hogar': [
+      {'nombre': 'Sacar basura', 'peso_kg': 0.0},
+      {'nombre': 'Lavar platos', 'peso_kg': 0.0},
+      {'nombre': 'Ordenar habitación', 'peso_kg': 0.0},
+      {'nombre': 'Limpiar baño', 'peso_kg': 0.0},
+      {'nombre': 'Revisar compras faltantes', 'peso_kg': 0.0},
+    ],
     'trabajo': [
       {'nombre': 'Laptop', 'peso_kg': 1.5},
       {'nombre': 'Cargador', 'peso_kg': 0.2},
@@ -94,6 +124,9 @@ class AppConstants {
 
   // Palabras clave para resaltar ítems cuando llueve
   static const List<String> rainKeywords = [
-    'paraguas', 'impermeable', 'chubasquero', 'lluvia',
+    'paraguas',
+    'impermeable',
+    'chubasquero',
+    'lluvia',
   ];
 }

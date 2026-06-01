@@ -3,9 +3,34 @@ import '../../domain/entities/checklist.dart';
 import '../../domain/entities/item.dart';
 import '../../domain/usecases/checklist_usecases.dart';
 import '../../data/repositories/checklist_repository_impl.dart';
+import '../../core/packing_intelligence.dart';
 
 /// Enum para el estado de sincronización con Firestore.
 enum SyncStatus { idle, syncing, synced, error }
+
+class ChecklistWarning {
+  final Checklist checklist;
+  final int total;
+  final int pending;
+  final int completed;
+
+  const ChecklistWarning({
+    required this.checklist,
+    required this.total,
+    required this.pending,
+    required this.completed,
+  });
+
+  bool get isEmpty => total == 0;
+  bool get hasNoSelection => total > 0 && completed == 0;
+  double get progress => total == 0 ? 0 : completed / total;
+
+  String get message {
+    if (isEmpty) return 'Está vacía. Agrega ítems para usarla.';
+    if (hasNoSelection) return 'No has marcado ningún ítem todavía.';
+    return 'Tiene $pending ítem(s) pendiente(s).';
+  }
+}
 
 /// Provider principal de checklists.
 /// Expone: lista de checklists, checklist activo, ítems, loading state.
@@ -15,6 +40,7 @@ class ChecklistProvider extends ChangeNotifier {
 
   // ── Estado ─────────────────────────────────────
   List<Checklist> _checklists = [];
+  List<ChecklistWarning> _warnings = [];
   Checklist? _activeChecklist;
   List<Item> _items = [];
   bool _isLoading = false;
@@ -24,8 +50,17 @@ class ChecklistProvider extends ChangeNotifier {
 
   // ── Getters ────────────────────────────────────
   List<Checklist> get checklists => _checklists;
+  List<ChecklistWarning> get warnings => _warnings;
   Checklist? get activeChecklist => _activeChecklist;
   List<Item> get items => _items;
+  List<Item> get criticalPendingItems {
+    final exitType = _activeChecklist?.tipoSalida ?? '';
+    return _items
+        .where((item) =>
+            !item.completado && PackingIntelligence.isCritical(item, exitType))
+        .toList();
+  }
+
   bool get isLoading => _isLoading;
   String? get error => _error;
   ChecklistStatsResult? get stats => _stats;
@@ -40,6 +75,7 @@ class ChecklistProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _checklists = await _repo.getAll();
+      _warnings = await _buildWarnings(_checklists);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -77,6 +113,7 @@ class ChecklistProvider extends ChangeNotifier {
     try {
       _activeChecklist = await _repo.getById(id);
       _items = await _repo.getItems(id);
+      _sortItems();
       // Calcula estadísticas en un Isolate separado (no bloquea la UI)
       await _recalcStats();
     } catch (e) {
@@ -102,19 +139,51 @@ class ChecklistProvider extends ChangeNotifier {
     await _reloadItems();
   }
 
+  Future<void> addSuggestions(List<PackingSuggestion> suggestions) async {
+    if (_activeChecklist?.id == null || suggestions.isEmpty) return;
+    for (final suggestion in suggestions) {
+      final item = Item(
+        checklistId: _activeChecklist!.id!,
+        nombre: suggestion.name,
+        pesoKg: suggestion.weightKg,
+      );
+      await _repo.addItem(item);
+    }
+    await _reloadItems();
+  }
+
+  /// Agrega un ítem directamente a un checklist por ID (sin necesitar el activo).
+  /// Usado por el flujo de generación con IA.
+  Future<void> addItemToChecklist(int checklistId, String nombre) async {
+    final item = Item(checklistId: checklistId, nombre: nombre);
+    await _repo.addItem(item);
+  }
+
   Future<void> toggleItem(Item item) async {
     // Actualiza localmente para respuesta inmediata en UI
     final idx = _items.indexWhere((i) => i.id == item.id);
-    if (idx != -1) {
-      _items[idx] = item.copyWith(completado: !item.completado);
-      notifyListeners();
-    }
+    if (idx == -1) return;
+    _items[idx] = item.copyWith(completado: !item.completado);
+    _sortItems();
+    notifyListeners();
     // Persiste en SQLite
     await _repo.toggleItem(item);
     // Sincroniza con Firestore
-    await _syncItemToFirestore(_items[idx]);
+    await _syncItemToFirestore(item.copyWith(completado: !item.completado));
     // Recalcula estadísticas en background
     await _recalcStats();
+    _warnings = await _buildWarnings(_checklists);
+    notifyListeners();
+  }
+
+  Future<void> completeActiveChecklist() async {
+    if (_activeChecklist?.id == null) return;
+    final pending = _items.where((item) => !item.completado).toList();
+    for (final item in pending) {
+      await _repo.toggleItem(item);
+    }
+    await _reloadItems();
+    await loadChecklists();
   }
 
   Future<void> deleteItem(int itemId) async {
@@ -129,8 +198,52 @@ class ChecklistProvider extends ChangeNotifier {
   Future<void> _reloadItems() async {
     if (_activeChecklist?.id == null) return;
     _items = await _repo.getItems(_activeChecklist!.id!);
+    _sortItems();
     await _recalcStats();
+    _warnings = await _buildWarnings(_checklists);
     notifyListeners();
+  }
+
+  Future<List<ChecklistWarning>> _buildWarnings(
+    List<Checklist> checklists,
+  ) async {
+    final warnings = <ChecklistWarning>[];
+    for (final checklist in checklists) {
+      final id = checklist.id;
+      if (id == null) continue;
+      final checklistItems = await _repo.getItems(id);
+      final completed = checklistItems.where((item) => item.completado).length;
+      final pending = checklistItems.length - completed;
+      if (checklistItems.isEmpty || pending > 0) {
+        warnings.add(
+          ChecklistWarning(
+            checklist: checklist,
+            total: checklistItems.length,
+            pending: pending,
+            completed: completed,
+          ),
+        );
+      }
+    }
+    warnings.sort((a, b) {
+      if (a.hasNoSelection != b.hasNoSelection) {
+        return a.hasNoSelection ? -1 : 1;
+      }
+      if (a.isEmpty != b.isEmpty) return a.isEmpty ? -1 : 1;
+      return b.checklist.fechaCreacion.compareTo(a.checklist.fechaCreacion);
+    });
+    return warnings;
+  }
+
+  void _sortItems() {
+    final exitType = _activeChecklist?.tipoSalida ?? '';
+    _items.sort((a, b) {
+      final aCritical = PackingIntelligence.isCritical(a, exitType);
+      final bCritical = PackingIntelligence.isCritical(b, exitType);
+      if (a.completado != b.completado) return a.completado ? 1 : -1;
+      if (aCritical != bCritical) return aCritical ? -1 : 1;
+      return a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase());
+    });
   }
 
   /// Usa compute() para ejecutar el cálculo en un Isolate separado.

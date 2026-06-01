@@ -1,25 +1,57 @@
 import 'package:flutter/material.dart';
 import '../../data/datasources/local/shared_prefs_helper.dart';
+import '../../core/theme.dart';
 
-/// Provider del tema claro/oscuro.
-/// Persiste la preferencia con shared_preferences.
+/// Provider del tema. Soporta: claro, oscuro y sunset.
+/// Persiste la elección con shared_preferences.
 class ThemeProvider extends ChangeNotifier {
-  bool _isDarkMode = false;
+  String _themeName = 'light';
 
-  bool get isDarkMode => _isDarkMode;
-  ThemeMode get themeMode =>
-      _isDarkMode ? ThemeMode.dark : ThemeMode.light;
+  String get themeName => _themeName;
+  bool get isDarkMode => _themeName == 'dark';
+
+  ThemeMode get themeMode {
+    if (_themeName == 'dark') return ThemeMode.dark;
+    return ThemeMode.light;
+  }
+
+  /// Retorna el ThemeData correspondiente al tema seleccionado.
+  ThemeData get currentTheme {
+    switch (_themeName) {
+      case 'dark':
+        return AppTheme.darkTheme;
+      case 'sunset':
+        return AppTheme.sunsetTheme;
+      case 'light':
+      default:
+        return AppTheme.lightTheme;
+    }
+  }
 
   /// Carga la preferencia guardada al iniciar.
   Future<void> init() async {
-    _isDarkMode = await SharedPrefsHelper.instance.getDarkMode();
+    _themeName = await SharedPrefsHelper.instance.getThemeName();
     notifyListeners();
   }
 
-  /// Alterna el tema y persiste la elección.
-  Future<void> toggleTheme() async {
-    _isDarkMode = !_isDarkMode;
-    await SharedPrefsHelper.instance.setDarkMode(_isDarkMode);
+  /// Establece un nuevo tema y lo persiste.
+  Future<void> setTheme(String name) async {
+    if (_themeName == name) return;
+    _themeName = name;
+    await SharedPrefsHelper.instance.setThemeName(name);
+    // Para retrocompatibilidad
+    await SharedPrefsHelper.instance.setDarkMode(name == 'dark');
     notifyListeners();
+  }
+
+  /// Alterna el tema (para uso rápido si es necesario).
+  Future<void> toggleTheme() async {
+    if (_themeName == 'light') {
+      await setTheme('dark');
+    } else if (_themeName == 'dark') {
+      await setTheme('sunset');
+    } else {
+      await setTheme('light');
+    }
   }
 }

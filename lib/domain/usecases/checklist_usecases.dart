@@ -1,5 +1,6 @@
 import '../entities/checklist.dart';
 import '../entities/item.dart';
+import '../../core/packing_intelligence.dart';
 
 /// Casos de uso del checklist.
 /// Cada clase encapsula una única operación de negocio.
@@ -19,11 +20,21 @@ class ChecklistStatsResult {
   final double porcentajeCompletado;
   final double pesoTotalKg;
   final double pesoCompletadoKg;
+  final int totalItems;
+  final int completedItems;
+  final int pendingItems;
+  final int criticalItems;
+  final int criticalCompletedItems;
 
   const ChecklistStatsResult({
     required this.porcentajeCompletado,
     required this.pesoTotalKg,
     required this.pesoCompletadoKg,
+    required this.totalItems,
+    required this.completedItems,
+    required this.pendingItems,
+    required this.criticalItems,
+    required this.criticalCompletedItems,
   });
 }
 
@@ -35,11 +46,18 @@ ChecklistStatsResult calcularEstadisticas(List<Item> items) {
       porcentajeCompletado: 0,
       pesoTotalKg: 0,
       pesoCompletadoKg: 0,
+      totalItems: 0,
+      completedItems: 0,
+      pendingItems: 0,
+      criticalItems: 0,
+      criticalCompletedItems: 0,
     );
   }
-  final completados = items.where((i) => i.completado).length;
-  final porcentaje = (completados / items.length) * 100;
-  final pesoTotal = items.fold<double>(0, (sum, i) => sum + i.pesoKg);
+  final completedItems = items.where((i) => i.completado).length;
+  final criticalItems =
+      items.where((i) => PackingIntelligence.isCritical(i, '')).toList();
+  final porcentaje = (completedItems / items.length) * 100;
+  final pesoTotal = PackingIntelligence.totalWeight(items);
   final pesoCompletado = items
       .where((i) => i.completado)
       .fold<double>(0, (sum, i) => sum + i.pesoKg);
@@ -47,6 +65,11 @@ ChecklistStatsResult calcularEstadisticas(List<Item> items) {
     porcentajeCompletado: porcentaje,
     pesoTotalKg: pesoTotal,
     pesoCompletadoKg: pesoCompletado,
+    totalItems: items.length,
+    completedItems: completedItems,
+    pendingItems: items.length - completedItems,
+    criticalItems: criticalItems.length,
+    criticalCompletedItems: criticalItems.where((i) => i.completado).length,
   );
 }
 

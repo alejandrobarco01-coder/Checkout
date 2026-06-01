@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../core/location_service.dart';
 import '../../data/datasources/local/shared_prefs_helper.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/app_bottom_navigation.dart';
 
 /// Pantalla de configuración y perfil.
 /// Permite cambiar tema, ciudad del clima y cerrar sesión.
@@ -17,6 +19,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _cityController = TextEditingController();
   bool _loadingCity = true;
+  bool _useCurrentLocation = false;
+  String? _currentLocationLabel;
 
   @override
   void initState() {
@@ -32,9 +36,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadCity() async {
     final city = await SharedPrefsHelper.instance.getCity();
+    final useCurrent = await SharedPrefsHelper.instance.getUseCurrentLocation();
+    final current = await SharedPrefsHelper.instance.getCurrentLocation();
     if (mounted) {
       setState(() {
         _cityController.text = city;
+        _useCurrentLocation = useCurrent;
+        _currentLocationLabel = current == null
+            ? null
+            : '${current.name} (${current.lat.toStringAsFixed(4)}, ${current.lng.toStringAsFixed(4)})';
         _loadingCity = false;
       });
     }
@@ -48,6 +58,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Ciudad actualizada: $city'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _useDeviceLocation() async {
+    try {
+      final location = await LocationService.instance.getCurrentLocation();
+      await SharedPrefsHelper.instance.setCurrentLocation(
+        lat: location.lat,
+        lng: location.lng,
+      );
+      if (!mounted) return;
+      setState(() {
+        _useCurrentLocation = true;
+        _currentLocationLabel =
+            'Ubicación actual (${location.lat.toStringAsFixed(4)}, ${location.lng.toStringAsFixed(4)})';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ubicación actual activada'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on LocationServiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -71,7 +111,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (confirm == true && mounted) {
-      await context.read<AuthProvider>().logout();
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.logout();
+      if (!mounted) return;
       context.go('/login');
     }
   }
@@ -89,22 +131,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // ── Apariencia ─────────────────────────────────
-                _SectionHeader(title: 'Apariencia', icon: Icons.palette_outlined),
+                _SectionHeader(
+                    title: 'Apariencia', icon: Icons.palette_outlined),
                 Card(
-                  child: SwitchListTile(
-                    title: const Text('Modo oscuro'),
-                    subtitle: Text(
-                      themeProvider.isDarkMode ? 'Activado' : 'Desactivado',
-                      style: TextStyle(color: colors.onSurfaceVariant),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tema de la aplicación',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildThemeOption(
+                              context,
+                              themeProvider,
+                              'light',
+                              'Claro',
+                              Icons.light_mode_outlined,
+                              const Color(0xFF6C5CE7),
+                            ),
+                            _buildThemeOption(
+                              context,
+                              themeProvider,
+                              'dark',
+                              'Oscuro',
+                              Icons.dark_mode_outlined,
+                              const Color(0xFF1E272E),
+                            ),
+                            _buildThemeOption(
+                              context,
+                              themeProvider,
+                              'sunset',
+                              'Sunset',
+                              Icons.wb_sunny_outlined,
+                              const Color(0xFFE17055),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    secondary: Icon(
-                      themeProvider.isDarkMode
-                          ? Icons.dark_mode
-                          : Icons.light_mode_outlined,
-                      color: colors.primary,
-                    ),
-                    value: themeProvider.isDarkMode,
-                    onChanged: (_) => themeProvider.toggleTheme(),
                   ),
                 ),
 
@@ -119,8 +189,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ciudad para el clima',
+                          'Ubicación para clima y mapa',
                           style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _useCurrentLocation,
+                          title: const Text('Usar mi ubicación actual'),
+                          subtitle: Text(_currentLocationLabel ??
+                              'Pide permiso al dispositivo o navegador.'),
+                          onChanged: (_) => _useDeviceLocation(),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -129,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: TextField(
                                 controller: _cityController,
                                 decoration: const InputDecoration(
-                                  hintText: 'Ej: Madrid, Buenos Aires',
+                                  hintText: 'Respaldo: Medellín, Bogotá...',
                                   prefixIcon: Icon(Icons.location_city),
                                 ),
                               ),
@@ -143,6 +222,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── Historial y viajes ─────────────────────────
+                _SectionHeader(
+                    title: 'Historial y viajes', icon: Icons.history),
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(Icons.flight, color: colors.primary),
+                        title: const Text('Mis Viajes'),
+                        subtitle:
+                            const Text('Historial de salidas registradas'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/trips'),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.psychology_outlined,
+                            color: Color(0xFFE17055)),
+                        title: const Text('Historial de Olvidos'),
+                        subtitle: const Text('Ítems que más sueles olvidar'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/forgotten'),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.calendar_month,
+                            color: Color(0xFF6C5CE7)),
+                        title: const Text('Calendario'),
+                        subtitle: const Text('Citas, viajes y eventos'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/calendar'),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.map_outlined,
+                            color: Color(0xFF00B894)),
+                        title: const Text('Mapa de Destinos'),
+                        subtitle: const Text('Ver destinos en OpenStreetMap'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/map'),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -171,6 +297,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 4),
+    );
+  }
+
+  Widget _buildThemeOption(
+    BuildContext context,
+    ThemeProvider provider,
+    String value,
+    String label,
+    IconData icon,
+    Color activeColor,
+  ) {
+    final isSelected = provider.themeName == value;
+    final colors = Theme.of(context).colorScheme;
+
+    return GestureDetector(
+      onTap: () => provider.setTheme(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withOpacity(0.12) : colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color:
+                isSelected ? activeColor : colors.onSurface.withOpacity(0.08),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color:
+                  isSelected ? activeColor : colors.onSurface.withOpacity(0.4),
+              size: 26,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? activeColor
+                    : colors.onSurface.withOpacity(0.6),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
